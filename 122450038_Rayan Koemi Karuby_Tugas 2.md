@@ -14,7 +14,7 @@ Visualisasi tersebut menarik namun kurang efektif dalam menyampaikan informasi, 
 Sumber : https://www.polymersearch.com/blog/10-good-and-bad-examples-of-data-visualization
 
 Meskipun menarik, elemen 3D yang diigunakan dapat menyebabkan kebingungan dalam melakukan interpretasi dari data itu sendiri.
-1. Form and Function : Penggunaan elemen 3D dapat menyebabkan kebingunagan mengenai persepsi ukuran kotak, sehingga sulit untuk membandingkan proporsi berbagai negara dalam data tersebut
+1. Form and Function : Penggunaan elemen 3D dapat menyebabkan kebingunagan mengenai persepsi ukuran kotak, sehingga sulit untuk membandingkan proporsi berbagai negara dalam data tersebut.
 2. Justifying Every Design Decision : Sudut pandang 3D menyulitkan memahami kejelasan data. Kotak 3D bukan merupakan komunikasi yang efektif.
 3. Creating Accessibility Through Intuitive Design : Elemen 3D membuat pengguna lebih lama dalam memahami data karena distorsi perspektif.
 4. Never Deceive the Viewer : Persepsi ukuran kotak sangat berbeda dari aslinya, dan berpotensi menyesatkan.
