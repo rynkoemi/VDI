@@ -1,0 +1,465 @@
+---
+title: "Kelompok 3 RB VDI Tugas Besar"
+author: "Farrel Julio Akbar"
+date: "2024-11-29"
+output: html_document
+---
+
+```{r}
+# Load required libraries
+library(plyr)
+library(dplyr)
+library(ggplot2)
+library(readr)
+library(leaflet)
+library(knitr)
+library(tidyverse)
+library(lubridate)
+library(chron)
+```
+
+
+```{r}
+# Input dataset
+fsnyc <- read_csv("C:/Users/rynko/Documents/VDI/dataset_TSMC2014_NYC.csv")
+fstky <- read_csv("C:/Users/rynko/Documents/VDI/dataset_TSMC2014_TKY.csv")
+```
+```{r}
+head(fsnyc)
+```
+
+
+```{r}
+head(fstky)
+```
+
+
+```{r}
+# Kelompokkan data bedasarkan id
+fsnyc %>%
+  select(userId, longitude, latitude) %>%
+  group_by(userId) -> fsnyc_by_usr
+
+# Kelompokkan data berdasarkan kategori venue
+fsnyc %>%
+  select(venueCategory, longitude, latitude) %>%
+  group_by(venueCategory) -> fsnyc_by_cat
+```
+
+
+```{r}
+# Ambil 5000 sampel dari data NYC
+index <- sample(1:nrow(fsnyc_by_cat), 5000)
+nu_fsnyc_cat <- fsnyc_by_cat[index,]
+head(nu_fsnyc_cat)
+
+```
+
+
+```{r}
+# Visualisasi CheckIn NYC dengan peta
+leaflet(nu_fsnyc_cat) %>% 
+  addTiles('http://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png') %>% 
+  setView(-73.935242, 40.730610, zoom = 10) %>% 
+  addCircles(~longitude, ~latitude, popup=~venueCategory, weight=3, radius=40, 
+             color="red", stroke=TRUE, fillOpacity=0.9) %>% 
+  addLegend("bottomleft", colors="red", labels="Lokasi", title="FS Checkins : NYC")
+
+```
+
+
+```{r}
+# Ambil 5000 sampel dari data TKY
+fstky %>%
+  select(venueCategory, longitude, latitude) %>%
+  group_by(venueCategory) -> fstky_by_cat
+index <- sample(1:nrow(fstky_by_cat), 5000)
+nu_fstky_cat <- fstky_by_cat[index,]
+head(nu_fstky_cat)
+
+```
+
+
+```{r}
+# Visualisasi CheckIn TKY dengan peta
+leaflet(nu_fstky_cat) %>% 
+  addTiles('http://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png') %>% 
+  setView(139.839478, 35.652832, zoom = 10) %>% 
+  addCircles(~longitude, ~latitude, popup=~venueCategory, weight=3, radius=40, 
+             color="#ffa500", stroke=TRUE, fillOpacity=0.9) %>% 
+  addLegend("bottomleft", colors="#ffa500", labels="Lokasi ", title="FS Checkins : TOKYO")
+
+```
+
+
+```{r}
+# Siapkan timestamps
+fsnyc$dateTime <- as.POSIXct(strptime(gsub("\\+0000 ", "", fsnyc$utcTimestamp), '%c', tz='US/Eastern') + hours(fsnyc$timezoneOffset/60))
+fsnyc$time <- strftime(fsnyc$dateTime, '%H:%M:%S', tz='US/Eastern')
+
+fstky$dateTime <- as.POSIXct(strptime(gsub("\\+0000 ", "", fstky$utcTimestamp), '%c', tz='Japan')) + hours(fstky$timezoneOffset/60)
+fstky$time <- strftime(fstky$dateTime, '%H:%M:%S', tz='Japan')
+
+# Buat batas untuk jam yang akan divisualisasikan (periode)
+breaks <- c(0, 5, 11, 13, 18, 24) / 24
+labels <- c("Dini Hari", "Pagi", "Siang", "Sore", "Malam")
+fsnyc$Waktu <- cut(times(fsnyc$time), breaks, labels, include.lowest=TRUE)
+fstky$Waktu <- cut(times(fstky$time), breaks, labels, include.lowest=TRUE)
+
+```
+
+
+```{r}
+# Kelompokkan tempat berdasarkan jam-jam yang sudah dibatasi sebelumnnya
+fsnyc_venues <- fsnyc %>% 
+  group_by(venueCategory, Waktu) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count))
+
+fstky_venues <- fstky %>% 
+  group_by(venueCategory, Waktu) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count))
+
+# Top 30 categories
+fsnyc_top30 <- fsnyc %>% 
+  group_by(venueCategory) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count)) %>% 
+  top_n(30)
+
+fstky_top30 <- fstky %>% 
+  group_by(venueCategory) %>% 
+  summarise(count = n()) %>% 
+  arrange(desc(count)) %>% 
+  top_n(30)
+
+```
+
+
+```{r}
+# Visualisasi bar plot data NYC
+fsnyc_venues[fsnyc_venues$venueCategory %in% fsnyc_top30$venueCategory,] %>%
+  ggplot(aes(x=reorder(venueCategory, count), y=count, fill=Waktu)) + 
+  geom_bar(stat="identity", position=position_stack(reverse=TRUE)) +
+  coord_flip() +
+  theme_grey() +
+  labs(title="Tempat Favorit Warga New York", x="", y="")
+
+```
+
+
+```{r}
+# Bar plot for Tokyo
+fstky_venues[fstky_venues$venueCategory %in% fstky_top30$venueCategory,] %>%
+  ggplot(aes(x=reorder(venueCategory, count), y=count, fill=Waktu)) + 
+  geom_bar(stat="identity", position=position_stack(reverse=TRUE)) +
+  coord_flip() +
+  theme_grey() +
+  labs(title="Tempat Favorit Warga Tokyo", x="", y="")
+```
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(ggthemes)
+library(ggmap)
+theme_set(theme_few())
+```
+
+
+```{r}
+nyc_raw <- read_csv('C:/Users/rynko/Documents/VDI/dataset_TSMC2014_NYC.csv',
+                    col_types = cols(
+                      utcTimestamp = col_datetime(format = '%.%.%. %b %d %H:%M:%S %z %Y')
+                    ))
+```
+
+
+```{r}
+nyc <- nyc_raw %>% 
+  mutate(time = utcTimestamp + minutes(timezoneOffset)) %>% 
+  select(-timezoneOffset, -utcTimestamp)
+```
+
+```{r}
+tokyo <- read_csv('C:/Users/rynko/Documents/VDI/dataset_TSMC2014_TKY.csv',
+                   col_types = cols(
+                     utcTimestamp = col_datetime(format = '%.%.%. %b %d %H:%M:%S %z %Y')
+                   )) %>% 
+  mutate(time = utcTimestamp + minutes(timezoneOffset)) %>% 
+  select(-timezoneOffset, -utcTimestamp)
+```
+
+```{r}
+dat <- bind_rows(list(`New York` = nyc, Tokyo = tokyo), .id = 'Kota')
+```
+
+```{r}
+daily <- dat %>%
+  group_by(date = make_date(year(time), month(time), day(time)),
+           weekday = wday(date, label = TRUE),
+           Kota) %>% 
+  summarize(count = n())
+
+ggplot(daily, aes(date, count, color = Kota)) +
+geom_line(alpha = 0.7) +
+geom_smooth(se = FALSE) +
+scale_color_manual(values = c("New York" = "red", "Tokyo" = "#ffa500")) +
+labs(title = 'Jumlah Check-In Seiring Waktu',
+     x = 'Bulan',
+     y = 'Jumlah')
+```
+
+```{r}
+summarize_by_location <- function(df, location = NULL) {
+  if (!is.null(location)) df <- filter(df, Kota %in% location)
+  else df <- group_by(df, Kota)
+  df <- df %>% 
+    group_by(datetime = make_datetime(year(time), month(time), day(time), hour(time)),
+             week = week(time),
+             add = TRUE) %>% 
+    summarize(count = n()) %>% 
+    mutate(weeklytime = make_datetime(year = 1978,
+                                      day = wday(as_date(datetime)),
+                                      hour = hour(datetime))) %>% 
+    ungroup()
+  if (is.null(location)) df <- group_by(df, Kota)
+  df %>% 
+    group_by(weeklytime, add = TRUE) %>% 
+    summarize(weeklycount = mean(count))
+}
+
+summarize_by_venue <- function(df, venue = NULL) {
+  if (!is.null(venue)) df <- filter(df, venueCategory %in% venue)
+  df <- df %>% 
+    group_by(venueCategory,
+             datetime = make_datetime(year(time), month(time), day(time), hour(time)),
+             week = week(time)) %>% 
+    summarize(count = n()) %>% 
+    mutate(weeklytime = make_datetime(year = 1978,
+                                      day = wday(as_date(datetime)),
+                                      hour = hour(datetime))) %>% 
+    ungroup()
+  if (!is.null(venue)) df <- group_by(df, venueCategory)
+  df %>% 
+    group_by(weeklytime, add = TRUE) %>% 
+    summarize(weeklycount = mean(count))
+}
+
+weekly_by_hour <- function(data, location = NULL, venue = NULL) {
+  if (is.null(venue)) return(summarize_by_location(data, location))
+  if (is.null(location)) return(summarize_by_venue(data, venue))
+  data %>% 
+    filter(venueCategory %in% venue,
+           Kota %in% location) %>% 
+    group_by(venueCategory,
+             Kota,
+             datetime = make_datetime(year(time), month(time), day(time), hour(time)),
+             week = week(time)) %>% 
+    summarize(count = n()) %>% 
+    mutate(weeklytime = make_datetime(year = 1978,
+                                      day = wday(as_date(datetime)),
+                                      hour = hour(datetime))) %>% 
+    group_by(weeklytime, Kota, venueCategory) %>% 
+    summarize(weeklycount = mean(count))
+}
+```
+
+```{r}
+dat %>% 
+  weekly_by_hour() %>% 
+  ggplot(aes(weeklytime, weeklycount, color = Kota)) +
+  geom_line() +
+  scale_x_datetime(date_labels = '%a', date_breaks = '1 day') +
+  scale_color_manual(values = c("New York" = "red", "Tokyo" = "#ffa500")) +
+  labs(title = 'Rata-Rata Check-In dalam Satu Minggu',
+       subtitle = 'Terdapat perbedaan yang jelas antara hari kerja dan hari libur.',
+       x = 'Hari',
+       y = 'Jumlah Check-In')
+```
+
+```{r}
+hourly2 <- nyc %>% 
+  group_by(weekday = wday(time, label = TRUE),
+           hour = hour(time)) %>% 
+  summarize(count = n()) %>% 
+  mutate(hourlytime = make_datetime(hour = hour),
+         weekend = factor(ifelse(weekday %in% c('Sat', 'Sun'),
+                                 as.character(weekday),
+                                 'Weekday'))) 
+
+hourly2 %>% 
+  filter(weekend == 'Weekday') %>% 
+  ggplot(aes(hourlytime, count, group = weekday, color = weekend)) +
+  geom_line(size = 0.2) +
+  geom_line(data = filter(hourly2, weekend == 'Sat'), size = 1) +
+  geom_line(data = filter(hourly2, weekend == 'Sun'), size = 1) +
+  scale_x_datetime(date_breaks = '4 hours',
+                   date_labels = '%I %p') +
+  scale_color_manual(breaks = c('Weekday', 'Sat', 'Sun'),
+                     values = c('Weekday' = 'grey50', 'Sat' = '#377EB8', 'Sun' = '#E41A1C')) +
+  labs(title = 'Rata-Rata Check-In Berdasarkan Jam Dalam Satu Minggu',
+       subtitle = 'Sabtu dan Minggu memiliki pola yang berbeda dibandingkan hari kerja.',
+       x = 'Waktu',
+       y = 'Check-in') +
+  theme(legend.title = element_blank())
+
+```
+
+```{r}
+hourly2 <- tokyo %>% 
+  group_by(weekday = wday(time, label = TRUE),
+           hour = hour(time)) %>% 
+  summarize(count = n()) %>% 
+  mutate(hourlytime = make_datetime(hour = hour),
+         weekend = factor(ifelse(weekday %in% c('Sat', 'Sun'),
+                                 as.character(weekday),
+                                 'Weekday'))) 
+
+hourly2 %>% 
+  filter(weekend == 'Weekday') %>% 
+  ggplot(aes(hourlytime, count, group = weekday, color = weekend)) +
+  geom_line(size = 0.2) +
+  geom_line(data = filter(hourly2, weekend == 'Sat'), size = 1) +
+  geom_line(data = filter(hourly2, weekend == 'Sun'), size = 1) +
+  scale_x_datetime(date_breaks = '4 hours',
+                   date_labels = '%I %p') +
+  scale_color_manual(breaks = c('Weekday', 'Sat', 'Sun'),
+                     values = c('Weekday' = 'grey50', 'Sat' = '#377EB8', 'Sun' = '#E41A1C')) +
+  labs(title = 'Rata-Rata Check-In Berdasarkan Jam Dalam Satu Minggu',
+       subtitle = 'Sabtu Minggu di Tokyo berbeda dengan Sabtu Minggu di New York',
+       x = 'Waktu',
+       y = 'Check-in') +
+  theme(legend.title = element_blank())
+```
+
+```{r}
+dat %>% 
+  weekly_by_hour(location = c('New York', 'Tokyo'), venue = c('Train Station', 'Subway')) %>% 
+  ggplot(aes(weeklytime, weeklycount, color = venueCategory)) +
+  geom_line() +
+  facet_grid(Kota ~ ., scales = 'free_y') +
+  scale_x_datetime(date_labels = '%a', date_breaks = '1 day') +
+  scale_color_manual(name = 'Transportasi Umum', 
+                     values = c("Subway" = "red", "Train Station" = "#ffa500")) +
+  labs(title = 'Rata-Rata Check In pada Transportasi Umum',
+       subtitle = 'Berdasarkan tempat stasiun transportasi umum 
+       yang dikunjungi warga New York dan Tokyo',
+       x = 'Hari',
+       y = 'Jumlah Check-In')
+```
+
+```{r}
+# Mengimpor library yang dibutuhkan
+library(dplyr)
+library(arules)
+
+# Jika data masih dalam format transaksi
+# Konversi objek transaksi menjadi data frame
+datanyc <- as(fsnyc, "data.frame")
+
+# Pastikan untuk memeriksa struktur data
+str(datanyc)
+
+# Jika ada kolom venueCategory, lakukan stratified sampling berdasarkan kategori ini
+sampled_datanyc <- datanyc %>%
+  group_by(venueCategory) %>%
+  sample_n(100, replace = TRUE)
+
+# Cek hasil sampling
+head(sampled_datanyc)
+
+# Ubah kembali sampled_data menjadi format transaksi
+transaction_listnyc <- split(sampled_datanyc$venueCategory, sampled_datanyc$userId)
+transaction_datanyc <- lapply(transaction_listnyc, function(x) paste(x, collapse = ","))
+writeLines(unlist(transaction_datanyc), "transactions_samplednyc.txt")
+
+# Membaca transaksi dari file yang telah disampling
+transactionsnyc <- read.transactions("transactions_samplednyc.txt", format = "basket", sep = ",")
+
+
+
+
+```
+
+
+```{r}
+itemFrequencyPlot(transactionsnyc,topN=20,type="absolute")
+
+# Get the rules with our parameters
+rulesnyc <- apriori(transactionsnyc, parameter = list(supp = 0.001, conf = 0.8))
+rules_liftnyc <- sort (rulesnyc, by = "lift", decreasing = T)
+inspect(head(rules_liftnyc))
+
+```
+
+
+
+```{r}
+if (!require("arulesViz")) install.packages("arulesViz", dependencies = TRUE)
+library(igraph)
+library(visNetwork)
+
+subrulesnyc <- head(sort(rulesnyc, by = "lift"), 5)
+plot(subrulesnyc, method = "graph")
+```
+
+```{r}
+# Mengimpor library yang dibutuhkan
+library(dplyr)
+library(arules)
+
+# Jika data masih dalam format transaksi
+# Konversi objek transaksi menjadi data frame
+datatky <- as(fstky, "data.frame")
+
+# Pastikan untuk memeriksa struktur data
+str(datatky)
+
+# Jika ada kolom venueCategory, lakukan stratified sampling berdasarkan kategori ini
+sampled_datatky <- datatky %>%
+  group_by(venueCategory) %>%
+  sample_n(100, replace = TRUE)
+
+# Cek hasil sampling
+head(sampled_datatky)
+
+# Ubah kembali sampled_data menjadi format transaksi
+transaction_listtky <- split(sampled_datatky$venueCategory, sampled_datatky$userId)
+transaction_datatky <- lapply(transaction_listtky, function(x) paste(x, collapse = ","))
+writeLines(unlist(transaction_datatky), "transactions_sampledtky.txt")
+
+# Membaca transaksi dari file yang telah disampling
+transactionstky <- read.transactions("transactions_sampledtky.txt", format = "basket", sep = ",")
+
+
+
+
+```
+
+
+```{r}
+itemFrequencyPlot(transactionstky,topN=20,type="absolute")
+
+# Get the rules with our parameters
+rulestky <- apriori(transactionstky, parameter = list(supp = 0.001, conf = 0.8))
+rules_lifttky <- sort (rulestky, by = "lift", decreasing = T)
+inspect(head(rules_lifttky))
+
+```
+
+
+
+```{r}
+if (!require("arulesViz")) install.packages("arulesViz", dependencies = TRUE)
+library(igraph)
+library(visNetwork)
+
+subrulestky <- head(sort(rulestky, by = "lift"), 5)
+plot(subrulestky, method = "graph")
+```
+```{r}
+rm(list = ls())
+gc()  #
+```
